@@ -19,7 +19,6 @@ BG_CARD     = "#1e293b"
 BG_INPUT    = "#0f172a"
 ACCENT      = "#22d3ee"
 ACCENT_DARK = "#0891b2"
-ACCENT_BLUE = "#1e3a8a"
 TEXT_MAIN   = "#f8fafc"
 TEXT_MUTED  = "#94a3b8"
 TEXT_DIM    = "#64748b"
@@ -158,6 +157,7 @@ def make_dropdown(hint: str, options_list, ref=None, on_select=None, expand=Fals
         expand=expand,
     )
 
+# Fix: Deprecation Error resolved by using Custom Container as Button
 def arctic_btn(text: str, on_click=None, icon=None, expand=False, width=None):
     row_items = []
     if icon:
@@ -165,18 +165,16 @@ def arctic_btn(text: str, on_click=None, icon=None, expand=False, width=None):
     row_items.append(
         ft.Text(text.upper(), size=12, weight=ft.FontWeight.BOLD, color=TEXT_MAIN)
     )
-    return ft.ElevatedButton(
+    return ft.Container(
         content=ft.Row(row_items, alignment=ft.MainAxisAlignment.CENTER, spacing=8),
+        bgcolor=ACCENT_DARK,
+        border_radius=10,
+        padding=ft.Padding.symmetric(horizontal=20, vertical=12),
+        ink=True,
         on_click=on_click,
         expand=expand,
         width=width,
-        bgcolor=ACCENT_DARK,
-        color=TEXT_MAIN,
-        elevation=4,
-        style=ft.ButtonStyle(
-            shape=ft.RoundedRectangleBorder(radius=10),
-            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
-        ),
+        alignment=ft.Alignment.CENTER
     )
 
 def glass_card(content, padding=16, border_top_color=None):
@@ -219,30 +217,6 @@ def spinner_row(message="Loading...", ref=None):
         visible=False,
         spacing=10,
         alignment=ft.MainAxisAlignment.CENTER,
-    )
-
-# ─────────────────────────────────────────────
-# SPLASH SCREEN
-# ─────────────────────────────────────────────
-
-def build_splash():
-    return ft.Container(
-        content=ft.Column(
-            [
-                ft.ProgressRing(color=ACCENT, width=54, height=54, stroke_width=4),
-                ft.Container(height=20),
-                ft.Text(
-                    "INITIALIZING PORTAL...",
-                    size=12, weight=ft.FontWeight.BOLD,
-                    color=ACCENT, font_family="monospace",
-                ),
-            ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            alignment=ft.MainAxisAlignment.CENTER,
-        ),
-        expand=True,
-        bgcolor=BG_DEEP,
-        alignment=ft.Alignment.CENTER,
     )
 
 # ─────────────────────────────────────────────
@@ -347,7 +321,7 @@ def build_role_selection(on_student, on_admin):
     return ft.Container(
         content=ft.Column(
             [
-                ft.Container(height=50),
+                ft.Container(height=30),
                 header,
                 ft.Container(height=36),
                 student_card,
@@ -377,7 +351,7 @@ def build_login_page(on_login, on_back):
         if u == "SA" and p == "123":
             error_ref.current.visible = False
             error_ref.current.update()
-            on_login()
+            on_login(e)
         else:
             error_ref.current.visible = True
             error_ref.current.update()
@@ -419,7 +393,7 @@ def build_login_page(on_login, on_back):
     return ft.Container(
         content=ft.Column(
             [
-                ft.Container(height=48),
+                ft.Container(height=20),
                 ft.IconButton(
                     ft.Icons.ARROW_BACK_IOS,
                     icon_color=TEXT_MUTED,
@@ -449,7 +423,6 @@ def build_student_dashboard(page: ft.Page, on_exit):
     tab_refs   = {}
     sec_refs   = {}
 
-    # ── Calendar ──
     def cal_row(event, start, end, color):
         return ft.Container(
             content=ft.Column(
@@ -494,7 +467,6 @@ def build_student_dashboard(page: ft.Page, on_exit):
         spacing=10,
     )
 
-    # ── Schedule ──
     schedule_sec = ft.Column(
         [
             section_title("Weekly Timeline (5th Sem)"),
@@ -510,7 +482,6 @@ def build_student_dashboard(page: ft.Page, on_exit):
         spacing=10,
     )
 
-    # ── Attendance ──
     roll_ref     = ft.Ref[ft.TextField]()
     course_ref   = ft.Ref[ft.Dropdown]()
     loader_ref   = ft.Ref[ft.Row]()
@@ -528,22 +499,21 @@ def build_student_dashboard(page: ft.Page, on_exit):
 
         att_err_ref.current.visible = False
         result_ref.current.visible  = False
-        att_err_ref.current.update()
-        result_ref.current.update()
-
+        sec_refs["attendance"].update() # Purana state clear karne ke liye refresh
+        
         if not roll or not course:
             att_err_ref.current.value   = "Please enter Roll No and select a Course."
             att_err_ref.current.visible = True
-            att_err_ref.current.update()
+            sec_refs["attendance"].update()
             return
 
         loader_ref.current.visible = True
-        loader_ref.current.update()
+        sec_refs["attendance"].update() # Spinner show karne ke liye refresh
 
         def fetch():
             try:
                 url  = f"{WEB_APP_URL}?action=studentReport&studentId={roll}&course={course}"
-                resp = requests.get(url, timeout=15)
+                resp = requests.get(url, timeout=25)
                 data = resp.json()
                 if data.get("error"):
                     att_err_ref.current.value   = data["error"]
@@ -591,10 +561,12 @@ def build_student_dashboard(page: ft.Page, on_exit):
                     res_details.current.controls = detail_rows
                     result_ref.current.visible   = True
             except Exception as ex:
-                att_err_ref.current.value   = f"Connection failed: {ex}"
+                att_err_ref.current.value   = f"Connection failed. Try again."
                 att_err_ref.current.visible = True
             finally:
                 loader_ref.current.visible = False
+                # FIX: Is line ne masla hal karna hai! Yeh poore section ko paint kar degi.
+                sec_refs["attendance"].update() 
                 page.update()
 
         threading.Thread(target=fetch, daemon=True).start()
@@ -680,7 +652,7 @@ def build_student_dashboard(page: ft.Page, on_exit):
                             icon=ft.Icons.SEARCH, expand=True,
                         ),
                         ft.Container(height=8),
-                        spinner_row("Fetching data...", ref=loader_ref),
+                        spinner_row("Fetching data (GAS takes 2-3s)...", ref=loader_ref),
                         ft.Text(
                             "", ref=att_err_ref, color=ERROR_C, size=12,
                             weight=ft.FontWeight.BOLD, visible=False,
@@ -703,7 +675,6 @@ def build_student_dashboard(page: ft.Page, on_exit):
     schedule_sec.visible   = False
     attendance_sec.visible = False
 
-    # ── Tab switcher ──
     def switch_tab(key):
         active_tab["val"] = key
         for k, sec in sec_refs.items():
@@ -832,7 +803,6 @@ def build_student_dashboard(page: ft.Page, on_exit):
 def build_admin_dashboard(page: ft.Page, on_exit):
     active_tab = {"val": "mark"}
 
-    # ── Mark Attendance state ──
     current_students = [dict(s) for s in STUDENTS_LIST]
     checkboxes: dict = {}
 
@@ -913,14 +883,12 @@ def build_admin_dashboard(page: ft.Page, on_exit):
     def sync_attendance(e):
         success_ref.current.visible = False
         mark_err.current.visible    = False
-        success_ref.current.update()
-        mark_err.current.update()
 
         course = course_ref.current.value or ""
         if not course:
             mark_err.current.value   = "Please select a course first!"
             mark_err.current.visible = True
-            mark_err.current.update()
+            page.update()
             return
 
         records = []
@@ -936,7 +904,7 @@ def build_admin_dashboard(page: ft.Page, on_exit):
         if not records:
             mark_err.current.value   = "Roster is empty!"
             mark_err.current.visible = True
-            mark_err.current.update()
+            page.update()
             return
 
         lab_val  = lab_ref.current.value or ""
@@ -948,11 +916,11 @@ def build_admin_dashboard(page: ft.Page, on_exit):
         }
 
         sync_spin.current.visible = True
-        sync_spin.current.update()
+        page.update()
 
         def do_post():
             try:
-                resp   = requests.post(WEB_APP_URL, json=payload, timeout=20)
+                resp   = requests.post(WEB_APP_URL, json=payload, timeout=25)
                 result = resp.json()
                 if result.get("result") == "success":
                     success_ref.current.value   = "✓  Attendance synced successfully!"
@@ -962,7 +930,7 @@ def build_admin_dashboard(page: ft.Page, on_exit):
                     mark_err.current.value   = "Error: " + result.get("message", "Unknown")
                     mark_err.current.visible = True
             except Exception as ex:
-                mark_err.current.value   = f"Network error: {ex}"
+                mark_err.current.value   = f"Network error."
                 mark_err.current.visible = True
             finally:
                 sync_spin.current.visible = False
@@ -1046,7 +1014,7 @@ def build_admin_dashboard(page: ft.Page, on_exit):
             ft.Container(height=10),
             arctic_btn("SYNC TO SHEETS", on_click=sync_attendance,
                        icon=ft.Icons.CLOUD_UPLOAD, expand=True),
-            spinner_row("Syncing...", ref=sync_spin),
+            spinner_row("Syncing (GAS takes 2-3s)...", ref=sync_spin),
             ft.Text("", ref=success_ref, color=SUCCESS, size=12,
                     weight=ft.FontWeight.BOLD,
                     text_align=ft.TextAlign.CENTER, visible=False),
@@ -1059,7 +1027,6 @@ def build_admin_dashboard(page: ft.Page, on_exit):
         expand=True,
     )
 
-    # ── Class Analytics ──
     rep_course  = ft.Ref[ft.Dropdown]()
     rep_spin    = ft.Ref[ft.Row]()
     rep_err     = ft.Ref[ft.Text]()
@@ -1071,22 +1038,20 @@ def build_admin_dashboard(page: ft.Page, on_exit):
         course = rep_course.current.value or ""
         rep_err.current.visible     = False
         rep_content.current.visible = False
-        rep_err.current.update()
-        rep_content.current.update()
 
         if not course:
             rep_err.current.value   = "Please select a module."
             rep_err.current.visible = True
-            rep_err.current.update()
+            page.update()
             return
 
         rep_spin.current.visible = True
-        rep_spin.current.update()
+        page.update()
 
         def do_fetch():
             try:
                 url  = f"{WEB_APP_URL}?action=classReport&course={course}"
-                resp = requests.get(url, timeout=20)
+                resp = requests.get(url, timeout=25)
                 data = resp.json()
                 if data.get("error"):
                     rep_err.current.value   = data["error"]
@@ -1140,7 +1105,7 @@ def build_admin_dashboard(page: ft.Page, on_exit):
                     rep_tbody.current.controls = rows
                     rep_content.current.visible = True
             except Exception as ex:
-                rep_err.current.value   = f"Failed: {ex}"
+                rep_err.current.value   = f"Failed to connect."
                 rep_err.current.visible = True
             finally:
                 rep_spin.current.visible = False
@@ -1165,7 +1130,7 @@ def build_admin_dashboard(page: ft.Page, on_exit):
                 )
             ),
             ft.Container(height=10),
-            spinner_row("Analyzing class data...", ref=rep_spin),
+            spinner_row("Analyzing class data (GAS takes 2-3s)...", ref=rep_spin),
             ft.Text("", ref=rep_err, color=ERROR_C, size=12,
                     weight=ft.FontWeight.BOLD, visible=False),
             ft.Column(
@@ -1211,7 +1176,6 @@ def build_admin_dashboard(page: ft.Page, on_exit):
         expand=True,
     )
 
-    # ── Tab switching ──
     mark_cont = ft.Ref[ft.Container]()
     rep_cont  = ft.Ref[ft.Container]()
 
@@ -1321,7 +1285,7 @@ def build_admin_dashboard(page: ft.Page, on_exit):
         ),
         expand=True,
         bgcolor=BG_DEEP,
-        data=rebuild_roster,   # called after widget added to page
+        data=rebuild_roster,
     )
 
 # ─────────────────────────────────────────────
@@ -1333,48 +1297,55 @@ def main(page: ft.Page):
     page.bgcolor    = BG_DEEP
     page.theme_mode = ft.ThemeMode.DARK
     page.padding    = 0
-    page.window.width  = 390
-    page.window.height = 844
 
-    def set_view(widget):
-        page.controls.clear()
-        page.controls.append(widget)
+    # Fix: Android Back Button ab app close nahi karega, balki pichle screen pe le jayega
+    def view_pop(e):
+        if len(page.views) > 1:
+            page.views.pop()
+            page.update()
+
+    page.on_view_pop = view_pop
+
+    def add_view(route, widget):
+        # Fix: SafeArea app ko status bar/notch se neechay rakhega
+        page.views.append(
+            ft.View(
+                route=route,
+                controls=[ft.SafeArea(content=widget, expand=True)],
+                bgcolor=BG_DEEP,
+                padding=0
+            )
+        )
         page.update()
         if hasattr(widget, "data") and callable(widget.data):
             widget.data()
 
     def go_role():
-        set_view(build_role_selection(
+        page.views.clear()
+        add_view("/", build_role_selection(
             on_student=lambda e: go_student(),
             on_admin=lambda e: go_login(),
         ))
 
     def go_login():
-        set_view(build_login_page(
-            on_login=go_admin,
-            on_back=lambda e: go_role(),
+        add_view("/login", build_login_page(
+            on_login=lambda e: go_admin(),
+            on_back=lambda e: view_pop(None),
         ))
 
     def go_student():
-        set_view(build_student_dashboard(
+        add_view("/student", build_student_dashboard(
             page=page,
             on_exit=lambda e: go_role(),
         ))
 
     def go_admin():
-        set_view(build_admin_dashboard(
+        add_view("/admin", build_admin_dashboard(
             page=page,
             on_exit=lambda e: go_role(),
         ))
 
-    set_view(build_splash())
-
-    def after_splash():
-        import time
-        time.sleep(1.2)
-        go_role()
-
-    threading.Thread(target=after_splash, daemon=True).start()
-
+    # Fix: Splash screen hata diya, direct App khulegi
+    go_role()
 
 ft.run(main)
